@@ -1,0 +1,6 @@
+.history
+.history/*
+.idea
+.idea/*
+
+node_modules/
