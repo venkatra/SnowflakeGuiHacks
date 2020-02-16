@@ -73,12 +73,13 @@ For now, I did a manual edit to set the rows into a JSON array.
 ![](images/data_grants_to_roles.png)
 
 #### Graphing
-This being a prototype, I've used the default settings and configuration of Dagre-D3 to layout the graph. You can view a [demo](roles.html).
+This being a prototype, I've used the default settings and configuration of Dagre-D3 to layout the graph. You can view a [demo](roles.html). The code is available at: [Github: SnowflakeGuiHacks](https://github.com/venkatra/SnowflakeGuiHacks/blob/master).
+
 
 ![](images/roles_hierarchy_with_privileges.png)
 
 The prototype achieves the following
- - Lays out the roles and thier hieararchy in a tree
+ - Lays out the roles and thier hierararchy in a tree
  - The privileges are mapped as edges, so you can see how the role is connected to an object (warehouse, databases, schema)
  - The ownership privilege was filtered out; as it caused too much noise in the graph.
  - The objects are also grouped into a bounding box.
@@ -90,6 +91,6 @@ This demo is just a prototype. The graph is not very responsive other than zoom-
 - Tooltips
 - Append with GRANTS_TO_USERS view dataset
 
-And ofcourse format the graph pretty. Prettifying the graph is a complex science, as explained in this [Blog: Lessons Learned from Creating a Custom Graph Visualization in React](https://medium.com/splunk-engineering/lessons-learned-from-creating-a-custom-graph-visualization-in-react-9a667ba799d1
+And of course format the graph pretty. Prettifying the graph is a complex science, as explained in this [Blog: Lessons Learned from Creating a Custom Graph Visualization in React](https://medium.com/splunk-engineering/lessons-learned-from-creating-a-custom-graph-visualization-in-react-9a667ba799d1
 ). Hence I leave this upto the implementor and thier audience.
 
