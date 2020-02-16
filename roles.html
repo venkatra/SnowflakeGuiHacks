@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Snowflake security roles visualization</title>
+<script src="public/js/d3.v5.min.js" charset="utf-8"></script>
+<script src="public/js/dagre-d3.js" charset="utf-8"></script>
+
+<style id="css">
+  body {
+    font: 300 14px 'Helvetica Neue', Helvetica;
+  }
+  
+  .node rect {
+    stroke: #333;
+    fill: #fff;
+  }
+  
+  .edgePath path {
+    stroke: #333;
+    fill: none;
+    stroke-width: .5px;
+  }
+  </style>
+    
+</head>
+<body>
+
+<!--
+  Ref : 
+    - https://github.com/dagrejs/dagre/wiki
+    - https://github.com/dagrejs/dagre-d3/wiki
+    - https://dagrejs.github.io/project/dagre-d3/latest/demo/tcp-state-diagram.html
+-->
+
+<div class="container">
+<svg width=24000 height=10000><g /></svg>
+</div>
+
+
+<script id="data_load_js">
+  var data_file_url = "data/grants_to_roles.json";
+
+  //object type to fill type mapping
+  const objecttype_to_fillcolor = {
+        'ROLE': "fill: khaki"
+        ,'SCHEMA': "fill: yellow"
+        ,'WAREHOUSE': "fill: lightsalmon"
+        ,'DATABASE': "fill: burlywood"
+      };
+
+  //privilege edge style mapping
+  const privilege_to_edgestyle = {
+        'USAGE': "stroke: green; fill: none; stroke-width: 1.5px"
+      };
+
+  // Create a new directed graph
+  const g = new dagreD3.graphlib.Graph({compound:true}).setGraph({
+    rankdir: "RL" 
+  });
+
+  // var g = new dagreD3.graphlib.Graph().setGraph({
+  //   rankdir: "RL" 
+  //   ,ranksep: 300 ,ranker: 'tight-tree'
+  //   ,nodesep: 75 ,edgesep: 50
+  // });
+
+  //define groups for various object types
+  g.setNode('ROLE', {label: 'Roles', clusterLabelPos: 'top', style: 'fill: ivory'});
+  g.setNode('DATABASE', {label: 'Database', clusterLabelPos: 'top',style: 'fill: lemonchiffon'});
+  g.setNode('SCHEMA', {label: 'Schema', clusterLabelPos: 'top',style: 'fill: lightgray'});
+  g.setNode('WAREHOUSE', {label: 'Warehouse', clusterLabelPos: 'top',style: 'fill: seashell'});
+
+  var grants_and_roles = {};
+  
+  function parseJsonDataIntoStructure(json) {
+    var role_nodes_dict = {};
+    var role_edges = [];
+    var edges_by_grantee = {};
+    var max_string_size = 0;
+    const grantedon_to_filteron = new Set(["ROLE" ,'DATABASE' ,"SCHEMA" ,"WAREHOUSE"]);
+    const privileges_to_filterout = new Set(["OWNERSHIP"]); 
+    
+    json
+    .filter(x => grantedon_to_filteron.has(x.GRANTED_ON))
+    .filter(x => privileges_to_filterout.has(x.PRIVILEGE) == false)
+    .forEach(r => {
+      console.log(r);
+      var str_sz = Math.max(r.GRANTEE_NAME.length ,r.NAME.length)
+      max_string_size = (str_sz > max_string_size) ? str_sz : max_string_size;
+
+      role_nodes_dict[r.GRANTEE_NAME] = { 'label' : r.GRANTEE_NAME ,'object_type': r.GRANTED_TO,'catalog': r.TABLE_CATALOG};
+      role_nodes_dict[r.NAME] = { 'label' : r.NAME ,'object_type': r.GRANTED_ON ,'catalog': r.TABLE_CATALOG}; ;
+        
+      var edg = {};
+      edg.target = r.GRANTEE_NAME;
+      edg.source = r.NAME;
+      edg.label = r.PRIVILEGE;
+      role_edges.push(edg);
+    });
+
+    var h = Object.keys(role_nodes_dict).sort()
+
+   //console.log(h); 
+
+   var sorted_dict = {}
+   var edges_sorted_by_role = [];
+   Object.keys(role_nodes_dict).forEach(function(k) {
+    sorted_dict[k] = role_nodes_dict[k];
+   });
+
+   grants_and_roles = {
+      'nodes' : sorted_dict
+      ,'edges' : role_edges
+      , 'max_len' : max_string_size
+    }
+    //console.log(ret_val);
+
+    return grants_and_roles;
+  }
+
+  function addNodesToGraph(p_role_nodes_dict ,p_role_edges ,p_box_width) {
+      // Add roles to the graph
+      Object.keys(p_role_nodes_dict).forEach(function(role_nd) {
+        var value = p_role_nodes_dict[role_nd];
+        value.rx = value.ry = 5;
+        value.width = p_box_width;
+        value.style = objecttype_to_fillcolor[value.object_type]
+        value.label = role_nd;
+        
+        g.setNode(value.label, value);
+        g.setParent(value.label, value.object_type);
+      });
+
+      console.log(g);
+
+      //Add edges
+      p_role_edges.forEach(role_edg => {
+        g.setEdge(role_edg.source 
+            ,role_edg.target 
+            ,{ label: role_edg.label
+            ,style: privilege_to_edgestyle[role_edg.label]
+             //,curve: d3.curveBasis 
+         });
+      });
+
+      return g
+    }
+
+  function renderGraphToSVG(g) {
+      var svg = d3.select("svg"),
+          inner = svg.select("g");
+      
+      // // Set up zoom support
+      var zoom = d3.zoom().on("zoom", function() {
+            inner.attr("transform", d3.event.transform);
+          });
+      svg.call(zoom);
+      
+      // // Create the renderer
+      var render = new dagreD3.render();
+      
+      // Run the renderer. This is what draws the final graph.
+      render(inner, g);
+      
+      // // Center the graph
+      // var initialScale = 0.75;
+      // svg.call(zoom.transform, d3.zoomIdentity.translate((svg.attr("width") - g.graph().width * initialScale) / 2, 20).scale(initialScale));
+      
+      // //svg.attr('height', g.graph().height * initialScale + 40);
+      // svg.attr('height', g.graph().height * initialScale + 4000);
+    }
+
+  fetch(data_file_url)
+  .then(res => res.json())
+  .then((role_array_json) => { 
+    const parsed_data = parseJsonDataIntoStructure(role_array_json);
+    
+    var dagre_g = addNodesToGraph(parsed_data.nodes ,parsed_data.edges ,parsed_data.max_len + 250);
+    renderGraphToSVG(dagre_g);
+  })
+  .catch(err => { throw err });  
+
+</script>
+
+
+
+</body>
+</html>
